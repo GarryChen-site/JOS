@@ -18,3 +18,4 @@
 /.suf
 .vscode/
 null.d
+__pycache__

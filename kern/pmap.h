@@ -16,6 +16,19 @@ extern size_t npages;
 
 extern pde_t *kern_pgdir;
 
+// meta information to control
+// PSE support
+
+// through GNUmakefile to control
+// #ifndef PSE_SUPPORT
+// #define PSE_SUPPORT
+// #endif
+#ifdef PSE_SUPPORT
+#define KPGSIZE (LPGSIZE)
+#else
+#define KPGSIZE (PGSIZE)
+#endif
+
 
 /* This macro takes a kernel virtual address -- an address that points above
  * KERNBASE, where the machine's maximum 256MB of physical memory is mapped --

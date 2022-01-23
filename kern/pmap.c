@@ -219,6 +219,13 @@ mem_init(void)
 	//
 	// If the machine reboots at this point, you've probably set up your
 	// kern_pgdir wrong.
+
+	// PSE (page size extensions) flag is set in cr4.
+	#ifdef PSE_SUPPORT
+	// enable optional 4MB page
+	lcr4(rcr4()|CR4_PSE);
+	#endif
+
 	lcr3(PADDR(kern_pgdir));
 
 	check_page_free_list(0);
