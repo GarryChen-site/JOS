@@ -328,6 +328,50 @@ page_init(void)
 // Returns NULL if out of free memory.
 //
 // Hint: use page2kva and memset
+
+#ifdef PSE_SUPPORT
+struct PageInfo *
+large_page_alloc(int alloc_flags)
+{
+	if(page_free_list == NULL)
+	{
+		return NULL;
+	}
+
+	// start: start of pp
+	// curr: tarck the current pp
+	// end: end of pp
+	struct PageInfo *start,*curr,*end;
+	start = curr = page_free_list;
+	end = pages + npages;
+
+	int cnt;
+	while(curr < end)
+	{
+		cnt = 0;
+		// 
+		while(curr -> pp_link && cnt < NPTENTRIES)
+		{
+			curr++;
+			cnt++;
+		}
+
+		if(cnt == NPTENTRIES)
+		{
+
+			for(end == start; end < current; end++)
+			{
+				end -> pp_link = NULL;
+				end -> pp_ref = 0;
+			}
+			return start;
+		}
+
+	}
+	
+}
+#endif
+
 struct PageInfo *
 page_alloc(int alloc_flags)
 {
