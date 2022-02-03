@@ -340,34 +340,51 @@ large_page_alloc(int alloc_flags)
 
 	// start: start of pp
 	// curr: tarck the current pp
-	// end: end of pp
-	struct PageInfo *start,*curr,*end;
-	start = curr = page_free_list;
+	// end: end of pp (page array end)
+	struct PageInfo *prev, *start,*curr,*end;
+	prev = start = curr = page_free_list;
 	end = pages + npages;
-
+	
 	int cnt;
-	while(curr < end)
+	while(end - curr > 0)
 	{
+		// every loop should init to 0
+		// to make page align
 		cnt = 0;
-		// 
-		while(curr -> pp_link && cnt < NPTENTRIES)
+
+		while(end-curr && curr -> pp_ref != 0 && cnt < NPTENTRIES)
 		{
-			curr++;
+			curr++
 			cnt++;
 		}
-
-		if(cnt == NPTENTRIES)
+		// found continuous 1024 free pages
+		if (cnt == NPTENTRIES)
 		{
+			prev -> pp_link = (curr--) -> pp_link;
 
-			for(end == start; end < current; end++)
+			// init
+			for(end = start; end < curr; end++)
 			{
-				end -> pp_link = NULL;
 				end -> pp_ref = 0;
+				end -> pp_link = NULL;
 			}
 			return start;
 		}
-
+		// not found update position
+		else 
+		{
+			// will change curr
+			prev = curr--;
+			// to change back
+			while(!(current->pp_link)&&current<end)
+			{
+				current++;
+			}
+			// new start to find continuous 1024 empty pages
+			start = curr;
+		}
 	}
+	return NULL;
 	
 }
 #endif
