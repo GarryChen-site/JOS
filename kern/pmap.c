@@ -640,6 +640,16 @@ tlb_invalidate(pde_t *pgdir, void *va)
 	invlpg(va);
 }
 
+struct PageInfo* 
+malloc(uint32_t order) {
+
+	return NULL;
+}
+
+void free(struct PageInfo* pp,int order) {
+
+}
+
 
 // --------------------------------------------------------------
 // Checking functions.

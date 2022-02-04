@@ -73,6 +73,9 @@ void	page_remove(pde_t *pgdir, void *va);
 struct PageInfo *page_lookup(pde_t *pgdir, void *va, pte_t **pte_store);
 void	page_decref(struct PageInfo *pp);
 
+struct PageInfo* malloc(uint32_t order);
+void free(struct PageInfo* pp,int order);
+
 void	tlb_invalidate(pde_t *pgdir, void *va);
 
 static inline physaddr_t
