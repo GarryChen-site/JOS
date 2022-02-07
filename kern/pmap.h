@@ -100,4 +100,43 @@ page2kva(struct PageInfo *pp)
 
 pte_t *pgdir_walk(pde_t *pgdir, const void *va, int create);
 
+
+static inline void init_list_head(struct list_head *list_head)
+{
+	list_head->next = list_head;
+	list_head->prev = list_head;
+}
+
+static inline void __list_add(struct list_head *new_node, 
+			      struct list_head *prev, 
+			      struct list_head *next)
+{
+	next->prev = new_node;
+	new_node->next = next;
+	new_node->prev = prev;
+	prev->next = new_node;
+}
+
+static inline void __list_del(struct list_head *prev, struct list_head *next)
+{
+	next->prev = prev;
+	prev->next = next;
+}
+
+static inline void list_add(struct list_head *new_node, struct list_head *head)
+{
+	__list_add(new_node, head, head->next);
+}
+
+static inline void list_del(struct list_head *entry)
+{
+	__list_del(entry->prev, entry->next);
+	// init_list_head(entry);
+}
+
+static inline bool list_empty(struct list_head *head)
+{
+	return head->next == head;
+}
+
 #endif /* !JOS_KERN_PMAP_H */
