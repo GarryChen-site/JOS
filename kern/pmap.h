@@ -75,6 +75,7 @@ void	page_decref(struct PageInfo *pp);
 
 struct PageInfo* malloc(uint32_t order);
 void free(struct PageInfo* pp,int order);
+void set_buddy(uint32_t start, uint32_t end, int order);
 
 void	tlb_invalidate(pde_t *pgdir, void *va);
 

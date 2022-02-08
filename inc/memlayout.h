@@ -187,6 +187,17 @@ struct PageInfo {
 	// boot_alloc do not have valid reference count fields.
 
 	uint16_t pp_ref;
+
+	// information used to support page frame fragmentation
+	// management of buddy system
+	// 0 if the page is allocated
+	// otherwise indicates page frame number
+	// in pow of 2
+	int order;
+
+	// list_head of all nodes in this area
+
+	struct list_head list_head;
 };
 
 // An array consisting of eleven elements of type free_area, one element for each group size. 

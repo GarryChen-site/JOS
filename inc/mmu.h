@@ -51,6 +51,7 @@
 
 #define PTSIZE		(PGSIZE*NPTENTRIES) // bytes mapped by a page directory entry
 #define PTSHIFT		22		// log2(PTSIZE)
+#define MAX_ORDER       10 		// log2(max continuous page frame number(1024) permitted to allocate)
 
 #define PTXSHIFT	12		// offset of PTX in a linear address
 #define PDXSHIFT	22		// offset of PDX in a linear address

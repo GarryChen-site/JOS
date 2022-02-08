@@ -17,6 +17,7 @@ static size_t npages_basemem;	// Amount of base memory (in pages)
 pde_t *kern_pgdir;		// Kernel's initial page directory
 struct PageInfo *pages;		// Physical page state array
 static struct PageInfo *page_free_list;	// Free list of physical pages
+struct free_area free_areas[MAX_ORDER + 1]; // Free areas of 2^order page frames for malloc() and free()
 
 
 // --------------------------------------------------------------
@@ -62,12 +63,17 @@ i386_detect_memory(void)
 // --------------------------------------------------------------
 
 static void boot_map_region(pde_t *pgdir, uintptr_t va, size_t size, physaddr_t pa, int perm);
+static void init_free_areas();
+static struct PageInfo* alloc_from_area(int area_order, int alloc_order);
+static void set_alloc_pageinfo(int i_start, int i_end);
+static void check_malloc_and_free();
 static void check_page_free_list(bool only_low_memory);
 static void check_page_alloc(void);
 static void check_kern_pgdir(void);
 static physaddr_t check_va2pa(pde_t *pgdir, uintptr_t va);
 static void check_page(void);
 static void check_page_installed_pgdir(void);
+
 
 // This simple physical memory allocator is used only while JOS is setting
 // up its virtual memory system.  page_alloc() is the real allocator.
@@ -241,6 +247,21 @@ mem_init(void)
 	check_page_installed_pgdir();
 }
 
+// init global free_areas array
+static inline void init_free_areas()
+{
+	for(int order = 0; order <= MAX_ORDER; order++)
+	{
+		init_list_head(&free_areas[order].free_list_head);
+		free_areas[order].nfree = 0;
+	}
+}
+
+void set_buddy(uint32_t i_start, uint32_t i_end, int order)
+{
+	
+}
+
 // --------------------------------------------------------------
 // Tracking of physical pages.
 // The 'pages' array has one 'struct PageInfo' entry per physical page.
@@ -290,7 +311,9 @@ page_init(void)
 	{
 		pages[i].pp_ref = 1;
 	}
-
+	cprintf("kernel used end: %d\n", PADDR(boot_alloc(0)) / PGSIZE); //444
+	// large page
+	// cprintf("large page used end: %d\n", ROUNDUP(PADDR(boot_alloc(0)),4096*1024)/PGSIZE); //1024
 	for(i = EXTPHYSMEM / PGSIZE; i < npages; i++)
 	{
 		// already in use
@@ -640,8 +663,65 @@ tlb_invalidate(pde_t *pgdir, void *va)
 	invlpg(va);
 }
 
+// reset pageinfos of all allocated pages
+static void set_alloc_pageinfo(int i_start, int i_end)
+{
+	pages[i_start].order = 0;
+	for(int i=i_start; i<i_end; i++)
+	{
+		pages[i].pp_link = NULL;
+		pages[i].pp_ref++;
+	}
+}
+
+// From an 'area_order' free_area allocate an 'alloc_order' block
+static struct PageInfo* alloc_from_area(int area_order, int alloc_order)
+{
+	struct list_head *head = &free_areas[area_order].free_list_head;
+
+	// start of pageinfo of allocated block
+	struct PageInfo *ret_pages = list_entry(head->next, struct PageInfo, list_head);
+
+	list_del(head->next);
+	free_areas[area_order].nfree--;
+
+	// set pageinfo of allocated block
+	set_alloc_pageinfo(ret_pages-pages, ret_pages-pages + (1 << alloc_order));
+
+	return ret_pages;
+}
+
 struct PageInfo* 
 malloc(uint32_t order) {
+
+	// check
+	if(order > MAX_ORDER)
+	{
+		return NULL;
+	}
+
+	if(!list_empty(&free_areas[order].free_list_head))
+	{
+		return alloc_from_area(order, order);
+	}
+	else
+	{
+		int prev = order;
+		struct PageInfo *ret_pages;
+
+		// search from larger area
+		while(++prev <= MAX_ORDER)
+		{
+			if(!list_empty(&free_areas[prev].free_list_head))
+			{
+				ret_pages = alloc_from_area(prev, order);
+				
+				// fragments of different size turn out to buddy
+				// set_buddy();
+				return ret_pages;
+			}
+		}
+	}
 
 	return NULL;
 }
@@ -1058,4 +1138,42 @@ check_page_installed_pgdir(void)
 	page_free(pp0);
 
 	cprintf("check_page_installed_pgdir() succeeded!\n");
+}
+
+static void check_malloc_and_free() 
+{
+	int cnt, order;
+
+	struct PageInfo *pp;
+	for(order = 0; order <= 6; order++)
+	{
+		cnt = free_areas[order].nfree;
+		pp = malloc(order);
+		assert(free_areas[order].nfree == cnt - 1);
+		free(pp,order);
+		assert(free_areas[order].nfree == cnt);
+	}
+
+	for(order = 7; order <= 9; order++)
+	{
+		cnt = free_areas[MAX_ORDER].nfree;
+		for(int _order = order; _order <= 9; _order++)
+		{
+			assert(free_areas[_order].nfree==0);
+		}
+		pp = malloc(order);
+		for(int _order=order;_order<=9;_order++)
+		{	
+			assert(free_areas[_order].nfree==1);
+		}
+		assert(free_areas[MAX_ORDER].nfree==cnt-1);
+		free(pp,order);
+		for(int _order=order;_order<=9;_order++)
+		{
+			assert(free_areas[_order].nfree==0);
+		}
+		assert(free_areas[MAX_ORDER].nfree==cnt);
+	}
+
+	cprintf("check_malloc_and_free() succeeded!\n");
 }
