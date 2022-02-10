@@ -1140,11 +1140,30 @@ check_page_installed_pgdir(void)
 	cprintf("check_page_installed_pgdir() succeeded!\n");
 }
 
+// the end of page_init,start to set_buddy
+// from max to 0
+// page frame number 
+// 0x0 is bios; 0xa0~0xff is used by io; 0x100~0x1bc is used by kernel 
+// -------- 0x1 -------------
+// order = 0, nfree = 1
+// order = 1, nfree = 1
+// order = 2, nfree = 1
+// order = 3, nfree = 1
+// order = 4, nfree = 1
+// order = 5, nfree = 2 (another is 0x9f - 0x80)
+// order = 6, nfree = 1
+// -------- 0xa0~0xff --------
+// order = 7, nfree = 0
+// -------- 0x100~0x1bc ------
+// order = 8, nfree = 
+// order = 9, nfree = 0
+
 static void check_malloc_and_free() 
 {
 	int cnt, order;
 
-	struct PageInfo *pp;
+	struct PageInfo *pp; 
+
 	for(order = 0; order <= 6; order++)
 	{
 		cnt = free_areas[order].nfree;
@@ -1154,6 +1173,7 @@ static void check_malloc_and_free()
 		assert(free_areas[order].nfree == cnt);
 	}
 
+	// after 444(0x1bc), all continution pages (blocks), i.e. order = 8(255+256 > 444)
 	for(order = 7; order <= 9; order++)
 	{
 		cnt = free_areas[MAX_ORDER].nfree;
