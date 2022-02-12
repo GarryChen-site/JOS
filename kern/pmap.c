@@ -307,17 +307,20 @@ page_init(void)
 		page_free_list = &pages[i];
 	}
 
-	for(i = IOPHYSMEM / PGSIZE; i < EXTPHYSMEM / PGSIZE; i++)
+	size_t i_start = IOPHYSMEM / PGSIZE;
+
+	for(i = i_start; i < EXTPHYSMEM / PGSIZE; i++)
 	{
 		pages[i].pp_ref = 1;
 	}
 	cprintf("kernel used end: %d\n", PADDR(boot_alloc(0)) / PGSIZE); //444
 	// large page
 	// cprintf("large page used end: %d\n", ROUNDUP(PADDR(boot_alloc(0)),4096*1024)/PGSIZE); //1024
+	size_t i_end = PADDR(boot_alloc(0)) / PGSIZE;
 	for(i = EXTPHYSMEM / PGSIZE; i < npages; i++)
 	{
 		// already in use
-		if(i < PADDR(boot_alloc(0)) / PGSIZE)
+		if(i < i_end)
 		{
 			pages[i].pp_ref = 1;
 		}
@@ -336,6 +339,16 @@ page_init(void)
 	// 	pages[i].pp_link = page_free_list;
 	// 	page_free_list = &pages[i];
 	// }
+
+	// link unallocated pages together
+	pages[i_start - 1].pp_link = &pages[i_end];
+
+	init_free_areas();
+
+	// 1 ~ io hole,start from MAX_ORDER
+	set_buddy(1,i_start,MAX_ORDER);
+
+	set_buddy(i_end,npages,MAX_ORDER);
 
 }
 
@@ -1155,8 +1168,12 @@ check_page_installed_pgdir(void)
 // -------- 0xa0~0xff --------
 // order = 7, nfree = 0
 // -------- 0x100~0x1bc ------
-// order = 8, nfree = 
-// order = 9, nfree = 0
+// order = 2, nfree = 1
+// order = 6, nfree = 1
+// order = 8, nfree = 0
+// order = 9, nfree = 1
+// order = 10, nfree = 31
+// -------- 0x8000 ------
 
 static void check_malloc_and_free() 
 {
