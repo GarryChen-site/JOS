@@ -257,9 +257,40 @@ static inline void init_free_areas()
 	}
 }
 
+// set buddy info
+// [i_start, i_end) must be a free page number area
 void set_buddy(uint32_t i_start, uint32_t i_end, int order)
 {
-	
+	uint32_t pfn_size = 1 << order;
+
+	if(order < 0 || i_end <= i_start)
+	{
+		return;
+	}
+
+	// rounding
+	uint32_t ri_start = ROUNDUP(i_start, pfn_size);
+	uint32_t ri_end = ROUNDDOWN(i_end, pfn_size);
+
+	// after several rounds, ri_start may bigger than ri_end
+	// so we need order - 1
+	if(ri_start > ri_end)
+	{
+		set_buddy(ri_start, ri_end, order - 1);
+	}
+	else 
+	{
+		// set buddy info and update free_areas
+		for(uint32_t i = ri_start; i < ri_end; i += pfn_size)
+		{
+			pages[i].order = order;
+			list_add(&pages[i].list_head, &free_areas[order].free_list_head);
+			free_areas[order].nfree++;
+		}
+		// recursively set left and right rest regions
+		set_buddy(i_start,ri_start,order - 1);
+		set_buddy(ri_end,i_end,order - 1);
+	}
 }
 
 // --------------------------------------------------------------
@@ -699,6 +730,7 @@ static struct PageInfo* alloc_from_area(int area_order, int alloc_order)
 	free_areas[area_order].nfree--;
 
 	// set pageinfo of allocated block
+	// relative position
 	set_alloc_pageinfo(ret_pages-pages, ret_pages-pages + (1 << alloc_order));
 
 	return ret_pages;
@@ -730,7 +762,7 @@ malloc(uint32_t order) {
 				ret_pages = alloc_from_area(prev, order);
 				
 				// fragments of different size turn out to buddy
-				// set_buddy();
+				set_buddy(ret_pages-pages+(1<<order), ret_pages-pages + (1 << prev),prev - 1);
 				return ret_pages;
 			}
 		}
@@ -1175,6 +1207,7 @@ check_page_installed_pgdir(void)
 // order = 10, nfree = 31
 // -------- 0x8000 ------
 
+// simple check
 static void check_malloc_and_free() 
 {
 	int cnt, order;
@@ -1190,22 +1223,23 @@ static void check_malloc_and_free()
 		assert(free_areas[order].nfree == cnt);
 	}
 
-	// after 444(0x1bc), all continution pages (blocks), i.e. order = 8(255+256 > 444)
-	for(order = 7; order <= 9; order++)
+	// order = 7, nfree = 0
+	// order = 8, nfree = 0
+	for(order = 7; order <= 8; order++)
 	{
 		cnt = free_areas[MAX_ORDER].nfree;
-		for(int _order = order; _order <= 9; _order++)
+		for(int _order = order; _order <= 8; _order++)
 		{
 			assert(free_areas[_order].nfree==0);
 		}
 		pp = malloc(order);
-		for(int _order=order;_order<=9;_order++)
+		for(int _order=order;_order<=8;_order++)
 		{	
 			assert(free_areas[_order].nfree==1);
 		}
 		assert(free_areas[MAX_ORDER].nfree==cnt-1);
 		free(pp,order);
-		for(int _order=order;_order<=9;_order++)
+		for(int _order=order;_order<=8;_order++)
 		{
 			assert(free_areas[_order].nfree==0);
 		}
