@@ -274,7 +274,7 @@ void set_buddy(uint32_t i_start, uint32_t i_end, int order)
 
 	// after several rounds, ri_start may bigger than ri_end
 	// so we need order - 1
-	if(ri_start > ri_end)
+	if(ri_start >= ri_end)
 	{
 		set_buddy(ri_start, ri_end, order - 1);
 	}
@@ -761,7 +761,10 @@ malloc(uint32_t order) {
 			{
 				ret_pages = alloc_from_area(prev, order);
 				
-				// fragments of different size turn out to buddy
+				// when it becomes necessary to use a block of 2^k page frames to 
+				// satisfy a request for 2^h page frames(h < k), the program allocates
+				// the first 2^h page frames and recursively reassigns the last 2^k-2^h page frames
+				// to the free_area lists that have indexes between h and k
 				set_buddy(ret_pages-pages+(1<<order), ret_pages-pages + (1 << prev),prev - 1);
 				return ret_pages;
 			}
@@ -772,6 +775,34 @@ malloc(uint32_t order) {
 }
 
 void free(struct PageInfo* pp,int order) {
+
+	uint32_t pfn_idx, buddy_idx = pp-pages;
+	uint32_t pfn_size = 1 << order;
+	struct PageInfo *buddy_pp;
+
+	while(order < MAX_ORDER)
+	{
+		buddy_idx = pfn_idx ^(1 << order);
+		buddy_pp = pages + buddy_idx;
+
+		if(buddy_pp->order == order && buddy_pp->pp_link)
+		{
+			list_del(&buddy_pp->list_head);
+			free_areas[order].nfree--;
+			buddy_pp->order = 0;
+			pfn_idx &= buddy_idx;
+			order++;
+		}else
+		{
+			// order reach maximum 
+			list_add(&pages[pfn_idx].list_head, &free_areas[order].free_list_head);
+			free_areas[order].nfree++;
+			return;
+		}
+	}
+
+	list_add_tail(&pages[pfn_idx].list_head,&free_areas[MAX_ORDER].free_list_head);
+	free_areas[MAX_ORDER].nfree++;
 
 }
 
