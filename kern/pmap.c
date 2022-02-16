@@ -175,8 +175,10 @@ mem_init(void)
 	// particular, we can now map memory using boot_map_region
 	// or page_insert
 	page_init();
+	cprintf("page init done");
 
 	check_page_free_list(1);
+	cprintf("page free list done");
 	check_page_alloc();
 	check_page();
 
@@ -245,6 +247,9 @@ mem_init(void)
 
 	// Some more checks, only possible after kern_pgdir is installed.
 	check_page_installed_pgdir();
+	// cprintf("start check_malloc_and_free\n");
+	// check_malloc_and_free();
+	// cprintf("end check_malloc_and_free\n");
 }
 
 // init global free_areas array
@@ -372,14 +377,19 @@ page_init(void)
 	// }
 
 	// link unallocated pages together
-	pages[i_start - 1].pp_link = &pages[i_end];
+	// pages[i_start - 1].pp_link = &pages[i_end];
 
-	init_free_areas();
+	// init_free_areas();
+	// cprintf("Init free areas done.\n");
 
 	// 1 ~ io hole,start from MAX_ORDER
-	set_buddy(1,i_start,MAX_ORDER);
+	// cprintf("Init buddy part1 ...\n");
+	// set_buddy(1,i_start,MAX_ORDER);
+	// cprintf("Init buddy part1 done.\n");
 
-	set_buddy(i_end,npages,MAX_ORDER);
+	// cprintf("Init buddy part2 ...\n");
+	// set_buddy(i_end,npages,MAX_ORDER);
+	// cprintf("Init buddy part2 done.\n");
 
 }
 
@@ -754,6 +764,8 @@ malloc(uint32_t order) {
 		int prev = order;
 		struct PageInfo *ret_pages;
 
+		// If the block found comes from a list of 
+		// size curr_order greater than the requested size order , a while cycle is executed.
 		// search from larger area
 		while(++prev <= MAX_ORDER)
 		{
@@ -776,18 +788,19 @@ malloc(uint32_t order) {
 
 void free(struct PageInfo* pp,int order) {
 
-	uint32_t pfn_idx, buddy_idx = pp-pages;
+	uint32_t pfn_idx= pp-pages, buddy_idx;
 	uint32_t pfn_size = 1 << order;
 	struct PageInfo *buddy_pp;
 
 	while(order < MAX_ORDER)
 	{
 		buddy_idx = pfn_idx ^(1 << order);
-		buddy_pp = pages + buddy_idx;
+		buddy_pp = &pages[buddy_idx];
 
 		if(buddy_pp->order == order && buddy_pp->pp_link)
 		{
 			list_del(&buddy_pp->list_head);
+			// becasue deleted
 			free_areas[order].nfree--;
 			buddy_pp->order = 0;
 			pfn_idx &= buddy_idx;
@@ -801,7 +814,7 @@ void free(struct PageInfo* pp,int order) {
 		}
 	}
 
-	list_add_tail(&pages[pfn_idx].list_head,&free_areas[MAX_ORDER].free_list_head);
+	list_add(&pages[pfn_idx].list_head,&free_areas[MAX_ORDER].free_list_head);
 	free_areas[MAX_ORDER].nfree++;
 
 }
