@@ -175,10 +175,8 @@ mem_init(void)
 	// particular, we can now map memory using boot_map_region
 	// or page_insert
 	page_init();
-	cprintf("page init done");
 
 	check_page_free_list(1);
-	cprintf("page free list done");
 	check_page_alloc();
 	check_page();
 
