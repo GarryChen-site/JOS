@@ -280,6 +280,29 @@ region_alloc(struct Env *e, void *va, size_t len)
 	//   'va' and 'len' values that are not page-aligned.
 	//   You should round va down, and round (va + len) up.
 	//   (Watch out for corner-cases!)
+
+	void *begin = ROUNDDOWN(va,PGSIZE);
+	void *end = ROUNDUP(va+len,PGSIZE);
+
+	while(begin < end)
+	{
+		struct PageInfo *pp;
+
+		// reference assert((pp0 = page_alloc(0)));
+		if((pp = page_alloc(0)) == NULL)
+		{
+			panic("region_alloc: page_alloc failed");
+		}
+
+		int region = page_insert(e->env_pgdir, pp, begin, PTE_U | PTE_W);
+
+		if(region != 0)
+		{
+			panic("region_alloc: page_insert failed: %e", region);
+		}
+
+		begin += PGSIZE;
+	}
 }
 
 //
@@ -336,6 +359,17 @@ load_icode(struct Env *e, uint8_t *binary)
 	//  What?  (See env_run() and env_pop_tf() below.)
 
 	// LAB 3: Your code here.
+	struct Elf *elf = (struct Elf *)binary;
+	assert(elf->e_magic == ELF_MAGIC);
+
+	struct Proghdr *ph, *eph;
+	ph = (struct Proghdr *) ((uint8_t *) elf + elf->e_phoff);
+	eph = ph + elf->e_phnum;
+
+	for(; ph < eph; ph++)
+	{
+
+	}
 
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
@@ -354,6 +388,16 @@ void
 env_create(uint8_t *binary, enum EnvType type)
 {
 	// LAB 3: Your code here.
+	struct Env* env;
+	int region;
+
+	if((region = env_alloc(&env,0)) != 0)
+	{
+		panic("env_create: env_alloc failed: %e", region);
+	}
+
+	load_icode(env, binary);
+	env->env_type = type;
 }
 
 //
