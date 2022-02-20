@@ -362,17 +362,37 @@ load_icode(struct Env *e, uint8_t *binary)
 	struct Elf *elf = (struct Elf *)binary;
 	assert(elf->e_magic == ELF_MAGIC);
 
+	// switch to env's address space
+	lcr3(PADDR(e->env_pgdir));
+
 	struct Proghdr *ph, *eph;
 	ph = (struct Proghdr *) ((uint8_t *) elf + elf->e_phoff);
 	eph = ph + elf->e_phnum;
 
 	for(; ph < eph; ph++)
 	{
-
+		if(ph->p_type == ELF_PROG_LOAD)
+		{
+			if(ph->p_filesz > ph->p_memsz)
+			{
+				panic("load_icode: invalid program header (p_filesz > p_memsz)");
+			}
+			region_alloc(e, (void *)ph->p_va, ph->p_memsz);
+			// marked in the program header as being mapped but not actually present
+			memset((void *)ph->p_va + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
+			// The ph->p_filesz bytes from the ELF binary, starting at
+	        // 'binary + ph->p_offset', should be copied to virtual address
+	       // ph->p_va.
+		   memcpy((void *)ph->p_va, binary + ph->p_offset, ph->p_filesz);
+		}
 	}
+
+	// make eip points to the entry point
+	e->env_tf.tf_eip = elf->e_entry;
 
 	// Now map one page for the program's initial stack
 	// at virtual address USTACKTOP - PGSIZE.
+	region_alloc(e, (void *)USTACKTOP - PGSIZE, PGSIZE);
 
 	// LAB 3: Your code here.
 }
@@ -514,6 +534,16 @@ env_run(struct Env *e)
 	//	e->env_tf to sensible values.
 
 	// LAB 3: Your code here.
+
+	if(curenv){
+		curenv->env_status = ENV_RUNNABLE;
+	}
+	curenv = e;
+	curenv->env_status = ENV_RUNNING;
+	curenv->env_runs++;
+	lcr3(PADDR(curenv->env_pgdir));
+
+	env_pop_tf(&curenv->env_tf);
 
 	panic("env_run not yet implemented");
 }
