@@ -382,9 +382,9 @@ load_icode(struct Env *e, uint8_t *binary)
 			// marked in the program header as being mapped but not actually present
 			memset((void *)ph->p_va + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
 			// The ph->p_filesz bytes from the ELF binary, starting at
-	        // 'binary + ph->p_offset', should be copied to virtual address
-	       // ph->p_va.
-		   memcpy((void *)ph->p_va, binary + ph->p_offset, ph->p_filesz);
+	               // 'binary + ph->p_offset', should be copied to virtual address
+	               // ph->p_va.
+		        memcpy((void *)ph->p_va, binary + ph->p_offset, ph->p_filesz);
 		}
 	}
 
