@@ -363,9 +363,6 @@ load_icode(struct Env *e, uint8_t *binary)
 	struct Elf *elf = (struct Elf *)binary;
 	assert(elf->e_magic == ELF_MAGIC);
 
-	// switch to env's address space
-	lcr3(PADDR(e->env_pgdir));
-
 	struct Proghdr *ph, *eph;
 	ph = (struct Proghdr *) ((uint8_t *) elf + elf->e_phoff);
 	eph = ph + elf->e_phnum;
@@ -379,12 +376,15 @@ load_icode(struct Env *e, uint8_t *binary)
 				panic("load_icode: invalid program header (p_filesz > p_memsz)");
 			}
 			region_alloc(e, (void *)ph->p_va, ph->p_memsz);
+			// switch to its address space
+			lcr3(PADDR(e->env_pgdir)); // without this "memcpy" will cause error
 			// marked in the program header as being mapped but not actually present
 			memset((void *)ph->p_va + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
 			// The ph->p_filesz bytes from the ELF binary, starting at
-	               // 'binary + ph->p_offset', should be copied to virtual address
-	               // ph->p_va.
-		        memcpy((void *)ph->p_va, binary + ph->p_offset, ph->p_filesz);
+	        // 'binary + ph->p_offset', should be copied to virtual address
+	        // ph->p_va.
+		    memcpy((void *)ph->p_va, binary + ph->p_offset, ph->p_filesz);
+			// lcr3(PADDR(kern_pgdir));
 		}
 	}
 
