@@ -65,7 +65,7 @@ trap_init(void)
 	extern struct Segdesc gdt[];
 
 	// LAB 3: Your code here.
-	    void th_divide();
+	void th_divide();
     void th_debug();
     void th_nmi();
     void th_brkpt();
@@ -83,11 +83,13 @@ trap_init(void)
     void th_align();
     void th_mchk();
     void th_simderr();
+	void th_syscall();
 
     SETGATE(idt[T_DIVIDE], 0, GD_KT, &th_divide, 0);
     SETGATE(idt[T_DEBUG], 0, GD_KT, &th_debug, 0);
     SETGATE(idt[T_NMI], 0, GD_KT, &th_nmi, 0);
-    SETGATE(idt[T_BRKPT], 0, GD_KT, &th_brkpt, 0);
+	// MISSING '  trap 0x00000003 Breakpoint'
+    SETGATE(idt[T_BRKPT], 0, GD_KT, &th_brkpt, 3);
     SETGATE(idt[T_OFLOW], 0, GD_KT, &th_oflow, 0);
     SETGATE(idt[T_BOUND], 0, GD_KT, &th_bound, 0);
     SETGATE(idt[T_ILLOP], 0, GD_KT, &th_illop, 0);
@@ -102,6 +104,7 @@ trap_init(void)
     SETGATE(idt[T_ALIGN], 0, GD_KT, &th_align, 0);
     SETGATE(idt[T_MCHK], 0, GD_KT, &th_mchk, 0);
     SETGATE(idt[T_SIMDERR], 0, GD_KT, &th_simderr, 0);
+	SETGATE(idt[T_SYSCALL], 0, GD_KT, &th_syscall, 3);
 
 	// Per-CPU setup 
 	trap_init_percpu();
@@ -189,6 +192,15 @@ trap_dispatch(struct Trapframe *tf)
 		return;
 	case T_BRKPT:
 		monitor(tf);
+	case T_SYSCALL:
+		// arranging for the return value to be passed back to the 
+		// user process in %eax
+		// Generic system call: pass system call number in AX,
+	   // up to five parameters in DX, CX, BX, DI, SI.
+		tf->tf_regs.reg_eax = syscall(tf->tf_regs.reg_eax, 
+			tf->tf_regs.reg_edx, tf->tf_regs.reg_ecx, 
+			tf->tf_regs.reg_ebx, tf->tf_regs.reg_edi, 
+			tf->tf_regs.reg_esi);
 		return;
 	default:	
 	// Unexpected trap: The user process or the kernel has a bug.
