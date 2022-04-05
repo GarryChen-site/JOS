@@ -323,9 +323,13 @@ page_init(void)
 
 	for(i = 1; i < npages_basemem; i++)
 	{
-		pages[i].pp_ref = 0;
-		pages[i].pp_link = page_free_list;
-		page_free_list = &pages[i];
+		if (i == MPENTRY_PADDR / PGSIZE) {
+			pages[i].pp_ref = 1;
+		} else {
+			pages[i].pp_ref = 0;
+			pages[i].pp_link = page_free_list;
+			page_free_list = &pages[i];
+		}
 	}
 
 	for(i = IOPHYSMEM / PGSIZE; i < EXTPHYSMEM / PGSIZE; i++)
@@ -653,7 +657,18 @@ mmio_map_region(physaddr_t pa, size_t size)
 	// Hint: The staff solution uses boot_map_region.
 	//
 	// Your code here:
-	panic("mmio_map_region not implemented");
+	size_t rounded_size = ROUNDUP(size, PGSIZE);
+
+	if (base + rounded_size >= MMIOLIM) {
+		panic("mmio_map_region: requested size overflow MMIOLIM");
+	}
+
+	boot_map_region(kern_pgdir, base, rounded_size, pa, PTE_PCD | PTE_PWT | PTE_W);
+	
+	uintptr_t curr_base = base;
+	base += rounded_size;
+	
+	return (void *)curr_base;
 }
 
 static uintptr_t user_mem_check_addr;
