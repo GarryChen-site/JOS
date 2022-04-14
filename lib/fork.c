@@ -16,6 +16,8 @@ pgfault(struct UTrapframe *utf)
 {
 	void *addr = (void *) utf->utf_fault_va;
 	uint32_t err = utf->utf_err;
+	pte_t pte = uvpt[PGNUM(addr)];
+	envid_t envid = sys_getenvid();
 	int r;
 
 	// Check that the faulting access was (1) a write, and (2) to a
@@ -34,7 +36,27 @@ pgfault(struct UTrapframe *utf)
 
 	// LAB 4: Your code here.
 
-	panic("pgfault not implemented");
+	// panic("pgfault not implemented");
+
+	if ((err & FEC_WR)== 0 || (pte& PTE_COW) == 0) {
+		panic("pgfault: bad faulting access\n");
+	}
+
+	if((r = sys_page_alloc(envid, PFTEMP, PTE_W | PTE_U | PTE_P)) != 0) {
+		panic("pgfault: %e", r);
+	}
+
+	memcpy(PFTEMP, ROUNDDOWN(addr, PGSIZE), PGSIZE);
+
+	if ((r = sys_page_map(envid, PFTEMP, envid, ROUNDDOWN(addr, PGSIZE), PTE_W | PTE_U | PTE_P)) != 0) {
+        panic("pgfault: %e", r);
+    }
+
+	// If no page is mapped, the function silently succeeds.
+	if ((r = sys_page_unmap(envid, PFTEMP)) != 0) {
+        panic("pgfault: %e", r);
+    }
+
 }
 
 //
@@ -54,7 +76,24 @@ duppage(envid_t envid, unsigned pn)
 	int r;
 
 	// LAB 4: Your code here.
-	panic("duppage not implemented");
+	// panic("duppage not implemented");
+
+	envid_t parent_envid = sys_getenvid();
+	void *va = (void *)(pn * PGSIZE);
+	
+	if ((uvpt[pn] & PTE_W) == PTE_W || (uvpt[pn] & PTE_COW) == PTE_COW) {
+        if ((r = sys_page_map(parent_envid, va, envid, va, PTE_COW | PTE_U | PTE_P)) != 0) {
+            panic("duppage: %e", r);
+        }
+		// won't interfere with each other
+        if ((r = sys_page_map(parent_envid, va, parent_envid, va, PTE_COW | PTE_U | PTE_P)) != 0) {
+            panic("duppage: %e", r);
+        }
+	} else {
+        if ((r = sys_page_map(parent_envid, va, envid, va, PTE_U | PTE_P)) != 0) {
+            panic("duppage: %e", r);
+        }
+	}
 	return 0;
 }
 
@@ -78,7 +117,7 @@ envid_t
 fork(void)
 {
 	// LAB 4: Your code here.
-	panic("fork not implemented");
+	// panic("fork not implemented");
 }
 
 // Challenge!
