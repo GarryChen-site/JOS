@@ -116,8 +116,51 @@ duppage(envid_t envid, unsigned pn)
 envid_t
 fork(void)
 {
+	envid_t envid;
+	uint32_t addr;
+	int r;
+
+
 	// LAB 4: Your code here.
 	// panic("fork not implemented");
+
+	set_pgfault_handler(pgfault);
+	envid = sys_exofork();
+	if(envid < 0 ){
+		panic("sys_exofork: %e", envid);
+	}
+
+	if(envid == 0){
+		// fix thisenv in child
+		thisenv = &envs[ENVX(sys_getenvid())];
+		return 0;
+	}
+
+	// copy the address space mappings to child
+	for (addr = 0; addr < USTACKTOP; addr += PGSIZE) {
+		if((uvpd[PDX(addr)] & PTE_P) == PTE_P && (uvpt[PGNUM(addr)] & PTE_P) == PTE_P){
+			duppage(envid, PGNUM(addr));
+		}
+	}
+
+	void _pgfault_upcall();
+
+	// allocate a fresh page in the child for the exception stack
+    if ((r = sys_page_alloc(envid, (void *)(UXSTACKTOP - PGSIZE), PTE_W | PTE_U | PTE_P)) != 0) {
+        panic("fork: %e", r);
+    }
+	// The parent sets the user page fault entrypoint for the child to look like its own
+	if ((r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall)) != 0) {
+        panic("fork: %e", r);
+    }
+
+	// mark the child as runnable
+	if((r = sys_env_set_status(envid, ENV_RUNNABLE)) != 0){
+		panic("fork: %e", r);
+	}
+
+	return envid;
+
 }
 
 // Challenge!
