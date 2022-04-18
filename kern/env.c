@@ -563,19 +563,20 @@ env_run(struct Env *e)
 
 	// LAB 3: Your code here.
 
-	if(curenv){
+	if(curenv != NULL && curenv->env_status == ENV_RUNNING){
+		// lab 4 primes: if curenv != ENV_RUNNING, then the first env will come to ipc, it is a horrible bug
 		curenv->env_status = ENV_RUNNABLE;
 	}
 	curenv = e;
 	curenv->env_status = ENV_RUNNING;
 	curenv->env_runs++;
 	
-	unlock_kernel();
 
 	lcr3(PADDR(curenv->env_pgdir));
 
+	unlock_kernel();
+
 	env_pop_tf(&curenv->env_tf);
 
-	panic("env_run not yet implemented");
 }
 
