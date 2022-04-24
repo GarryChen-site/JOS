@@ -162,7 +162,7 @@ file_block_walk(struct File *f, uint32_t filebno, uint32_t **ppdiskbno, bool all
 			}
 			f->f_indirect = newbno;
 			// set memeory to 0
-			memset(diskaddr(newbno), 0, BLKSIZE);
+			// memset(diskaddr(newbno), 0, BLKSIZE);
 		}
 		*ppdiskbno = &((uint32_t *)diskaddr(f->f_indirect))[filebno-NDIRECT];
 	}
@@ -198,9 +198,10 @@ file_get_block(struct File *f, uint32_t filebno, char **blk)
 			return -E_NO_DISK;
 		}
 		*pdiskbno = newbno;
-		memset(diskaddr(newbno), 0, BLKSIZE);
+		// memset(diskaddr(newbno), 0, BLKSIZE);
 	}
-	*blk = diskaddr(*pdiskbno);
+	*blk = (char *)diskaddr(*pdiskbno);
+	flush_block(*blk);
 	return 0;
 }
 
