@@ -122,13 +122,27 @@ env_init(void)
 	// LAB 3: Your code here.
 	// env_free_list points to the first free environment on the list.
 	// so from tail to head
-	for(i = NENV-1; i >= 0; i--) {
-		envs[i].env_status = ENV_FREE;
-		envs[i].env_id = 0;
-		envs[i].env_link = env_free_list;
-		env_free_list = &envs[i];
-	}
+	// for(i = NENV-1; i >= 0; i--) {
+	// 	envs[i].env_status = ENV_FREE;
+	// 	envs[i].env_id = 0;
+	// 	envs[i].env_link = env_free_list;
+	// 	env_free_list = &envs[i];
+	// }
 
+	for (i=0; i<NENV; i++){
+		if (i==NENV-1){
+			envs[i].env_link = NULL;
+		} else {
+			envs[i].env_link = &envs[i+1];
+		}
+		envs[i].env_id = 0;
+		envs[i].env_parent_id = 0;
+		envs[i].env_type = ENV_TYPE_USER;
+		envs[i].env_status = ENV_FREE;
+		envs[i].env_runs = 0;
+		envs[i].env_pgdir = NULL;
+	}
+	env_free_list = envs;
 	// Per-CPU part of the initialization
 	env_init_percpu();
 }
@@ -195,7 +209,15 @@ env_setup_vm(struct Env *e)
 	e->env_pgdir = (pde_t *)page2kva(p);
 	// memset(kern_pgdir, 0, PGSIZE);
 	// copy from kern_pgdir PGSIZE(page size)
-	memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
+	// memcpy(e->env_pgdir, kern_pgdir, PGSIZE);
+
+	for(i =0; i<PDX(UTOP); i++){
+		e->env_pgdir[i] = 0;
+	}
+	// from Virtual memory map , above UTOP is already mapped in kern_pgdir
+	for (i = PDX(UTOP); i<NPDENTRIES; i++){
+		e->env_pgdir[i] = kern_pgdir[i];
+	}
 
 	// UVPT maps the env's own page table read-only.
 	// Permissions: kernel R, user R
@@ -380,6 +402,10 @@ load_icode(struct Env *e, uint8_t *binary)
 	ph = (struct Proghdr *) ((uint8_t *) elf + elf->e_phoff);
 	eph = ph + elf->e_phnum;
 
+	// switch to its address space
+	// without this "memcpy" will cause error
+	// without this kernel page directory will be covered by user page direcotry
+	lcr3(PADDR(e->env_pgdir)); 
 	for(; ph < eph; ph++)
 	{
 		if(ph->p_type == ELF_PROG_LOAD)
@@ -389,8 +415,7 @@ load_icode(struct Env *e, uint8_t *binary)
 				panic("load_icode: invalid program header (p_filesz > p_memsz)");
 			}
 			region_alloc(e, (void *)ph->p_va, ph->p_memsz);
-			// switch to its address space
-			lcr3(PADDR(e->env_pgdir)); // without this "memcpy" will cause error
+
 			// marked in the program header as being mapped but not actually present
 			memset((void *)ph->p_va + ph->p_filesz, 0, ph->p_memsz - ph->p_filesz);
 			// The ph->p_filesz bytes from the ELF binary, starting at
