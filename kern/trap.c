@@ -163,7 +163,7 @@ trap_init_percpu(void)
 
 	int id = thiscpu->cpu_id;
 
-	thiscpu->cpu_ts.ts_esp0 = (uint32_t)percpu_kstacks[id] + KSTKSIZE;
+	thiscpu->cpu_ts.ts_esp0 = KSTACKTOP - id * (KSTKSIZE + KSTKGAP);
 	thiscpu->cpu_ts.ts_ss0 = GD_KD;
 	thiscpu->cpu_ts.ts_iomb = sizeof(struct Taskstate);
 
@@ -175,7 +175,7 @@ trap_init_percpu(void)
 	// Load the TSS selector (like other segment selectors, the
 	// bottom three bits are special; we leave them 0)
 	// TODO
-	ltr(GD_TSS0 + (id << 3));
+	ltr(GD_TSS0 + sizeof(struct Segdesc) * id);
 
 	// Load the IDT
 	lidt(&idt_pd);
