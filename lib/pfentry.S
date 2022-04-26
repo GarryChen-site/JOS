@@ -68,11 +68,16 @@ _pgfault_upcall:
 
 	// UTrapframe size is 52 32+5*4
 
-	movl 0x30(%esp), %ecx    // save trap-time esp in ecx
-	subl $4, %ecx            // enlarge the previous stack for 4 bytes
-	movl %ecx, 0x30(%esp)    // write the modified esp back
-	movl 0x28(%esp), %edx    // save trap-time eip in edx (4+4+32)
-	movl %edx, (%ecx)        // save eip at new esp for return
+	// movl 0x30(%esp), %ecx    // save trap-time esp in ecx
+	// subl $4, %ecx            // enlarge the previous stack for 4 bytes
+	// movl %ecx, 0x30(%esp)    // write the modified esp back
+	// movl 0x28(%esp), %edx    // save trap-time eip in edx (4+4+32)
+	// movl %edx, (%ecx)        // save eip at new esp for return
+ 
+	movl 40(%esp), %ebx
+	subl $4, 48(%esp)
+	movl 48(%esp), %eax
+	movl %ebx, (%eax)
 
 	// Restore the trap-time registers.  After you do this, you
 	// can no longer modify any general-purpose registers.
@@ -89,7 +94,7 @@ _pgfault_upcall:
 
 	// Switch back to the adjusted trap-time stack.
 	// LAB 4: Your code here.
-	pop	%esp
+	popl	%esp
 
 	// Return to re-execute the instruction that faulted.
 	// LAB 4: Your code here.

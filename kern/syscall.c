@@ -391,23 +391,31 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 			return -E_INVAL;
 		}
 
-		// if ((*pte & PTE_W) == 0 && (perm & PTE_W) == PTE_W) {
-        //     return -E_INVAL;
-        // }
-
-        if ((r = page_insert(e->env_pgdir, pp, e->env_ipc_dstva, perm)) != 0) {
-            return r;
+		if ((*pte & PTE_W) == 0 && (perm & PTE_W) == PTE_W) {
+            return -E_INVAL;
         }
 
-		e->env_ipc_perm = perm;
-	} else {
-		e->env_ipc_perm = 0;
+        // if ((r = page_insert(e->env_pgdir, pp, e->env_ipc_dstva, perm)) != 0) {
+        //     return r;
+        // }
+
+	// 	e->env_ipc_perm = perm;
+	// } else {
+	// 	e->env_ipc_perm = 0;
+	// }
+	    if(e->env_ipc_dstva){
+      if((r = page_insert(e->env_pgdir, pp, e->env_ipc_dstva, perm)) < 0){
+        return r;
+      }
+      e->env_ipc_perm = perm;
+    }
 	}
 
 	e->env_ipc_recving = 0;
     e->env_ipc_from = curenv->env_id;
     e->env_ipc_value = value;
     e->env_status = ENV_RUNNABLE;
+    e->env_tf.tf_regs.reg_eax = 0;
 
 	return 0;
 }
@@ -434,6 +442,8 @@ sys_ipc_recv(void *dstva)
 	curenv->env_ipc_recving = 1;
     curenv->env_ipc_dstva = dstva;
     curenv->env_status = ENV_NOT_RUNNABLE;
+    curenv->env_ipc_from = 0;
+    sys_yield();
 	return 0;
 }
 

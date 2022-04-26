@@ -404,6 +404,7 @@ page_fault_handler(struct Trapframe *tf)
 		// determine the location
 		// already an exception
 		if(tf->tf_esp >= UXSTACKTOP - PGSIZE && tf->tf_esp < UXSTACKTOP) {
+			// page fault again
 			*(uint32_t *)(tf->tf_esp - 4) = 0; // push an empty 32-bit word
 			utf = (struct UTrapframe *)(tf->tf_esp - 4 - sizeof(struct UTrapframe));
 		} else {
