@@ -155,11 +155,11 @@ sys_env_set_trapframe(envid_t envid, struct Trapframe *tf)
 		return r;
 	}
 
-	user_mem_assert(e, tf, sizeof(struct Trapframe), PTE_W);
-    tf->tf_cs |= 3;
-    tf->tf_ss |= 3;
+	user_mem_assert(e, tf, sizeof(struct Trapframe), PTE_U);
+    tf->tf_cs |= 0x03;
+//     tf->tf_ss |= 3;
     tf->tf_eflags |= FL_IF;
-    tf->tf_eflags &= ~FL_IOPL_3;
+    tf->tf_eflags &= ~FL_IOPL_MASK;
     e->env_tf = *tf;
 	return 0;
 
@@ -402,7 +402,7 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
 		return r;
 	}
 
-	if (e->env_ipc_recving == 0) {
+	if (!e->env_ipc_recving || e->env_ipc_from) {
         return -E_IPC_NOT_RECV;
     }
 

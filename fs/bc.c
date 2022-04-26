@@ -87,13 +87,13 @@ flush_block(void *addr)
 	// LAB 5: Your code here.
 	// panic("flush_block not implemented");
 
-	addr = ROUNDDOWN(addr, PGSIZE);
+	// addr = ROUNDDOWN(addr, PGSIZE);
 
 	if(!va_is_mapped(addr) || !va_is_dirty(addr)){
 		return;
 	}
 
-	// addr = ROUNDDOWN(addr, PGSIZE);
+	addr = ROUNDDOWN(addr, PGSIZE);
 
 	if((r = ide_write(blockno* BLKSECTS, addr, BLKSECTS)) != 0) {
 		panic("flush_block: %e", r);

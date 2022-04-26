@@ -92,6 +92,13 @@ duppage(envid_t envid, unsigned pn)
 	addr = (void*)((uint32_t)pn * PGSIZE);
 	perm = PTE_P | PTE_U;
 
+	if(uvpt[pn] & PTE_SHARE){
+		if ((r = sys_page_map(0,addr, envid, addr, PTE_SYSCALL))<0){
+			return r;
+		}
+		return 0;
+	}
+
 	if((uvpt[pn] & PTE_W) || (uvpt[pn] & PTE_COW)){
 		perm |= PTE_COW;
 	}
