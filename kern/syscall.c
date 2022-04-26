@@ -217,15 +217,16 @@ sys_page_alloc(envid_t envid, void *va, int perm)
 	// LAB 4: Your code here.
 	// panic("sys_page_alloc not implemented");
 
-	if ((uint32_t)va >= UTOP || PGOFF(va) != 0) {
-		return -E_INVAL;
+  	// whether va >= UTOP or va is not page-aligned
+  	if(va >= (void *)UTOP || PGOFF(va)){
+		  return -E_INVAL;
+		  }
+  
+  	// whether perm is inappropriate  
+  	if(((perm & (PTE_U | PTE_P)) != (PTE_U|PTE_P)) || (perm & ~PTE_SYSCALL)){
+		  return -E_INVAL;
 	}
-    if ((perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P)) {
-        return -E_INVAL;
-    }
-    if ((perm & ~(PTE_SYSCALL)) != 0) {
-        return -E_INVAL;
-    }
+
 	struct Env *e;
 	int r = envid2env(envid, &e, 1);
 	if (r != 0) {
@@ -276,49 +277,44 @@ sys_page_map(envid_t srcenvid, void *srcva,
 	// panic("sys_page_map not implemented");
 
 	struct Env *srcenv, *dstenv;
-
-	int r;
-
-    struct PageInfo *pp;
-    pte_t *pte;
-
-	// srcva >= UTOP or srcva is not page-aligned
-    if ((uint32_t)srcva >= UTOP || PGOFF(srcva) != 0) {
-        return -E_INVAL;
-    }
-	// dstva >= UTOP or dstva is not page-aligned
-    if ((uint32_t)dstva >= UTOP || PGOFF(dstva) != 0) {
-        return -E_INVAL;
-    }
-	// perm is inappropriate
-    if ((perm & (PTE_U | PTE_P)) != (PTE_U | PTE_P)) {
-        return -E_INVAL;
-    }
-	// perm is inappropriate
-    if ((perm & ~(PTE_SYSCALL)) != 0) {
-        return -E_INVAL;
-    }		
-
-	if ((r = envid2env(srcenvid, &srcenv, 1)) != 0) {
-        return r;
-    }
-    if ((r = envid2env(dstenvid, &dstenv, 1)) != 0) {
-        return r;
-    }
-	// not mapped
-	if((pp = page_lookup(srcenv->env_pgdir, srcva, &pte)) == NULL) {
-		return -E_INVAL;
+  	struct PageInfo *page;
+  	int srcre, dstre, re;
+  	pte_t *te;
+   
+  	// whether srcenvid or dstenvid doesn't currntly exist... 
+  	if((srcre = envid2env(srcenvid, &srcenv, 1))){
+		  return srcre;
 	}
-	// if (perm & PTE_W), but srcva is read-only in srcenvid's address space.
-    if ((*pte & PTE_W) == 0 && (perm & PTE_W) == PTE_W) {
-        return -E_INVAL;
-    }
-
-	if (( r = page_insert(dstenv->env_pgdir, pp, dstva, perm)) != 0) {
-		return r;
-	}
-
-	return 0;
+  	if((dstre = envid2env(dstenvid, &dstenv, 1))){
+		  return dstre;
+  	}
+  
+  	// whether srcva >=UTOP or dstva >= UTOP
+  	if(srcva >= (void *)UTOP || PGOFF(srcva) || dstva >= (void *)UTOP || PGOFF(dstva)){
+		  return -E_INVAL;
+  	}
+ 
+  	// whether perm is inappropriate
+  	if(((perm & (PTE_U|PTE_P)) != (PTE_U|PTE_P)) || (perm & ~PTE_SYSCALL)){
+		  return -E_INVAL;
+  	}
+   
+  	// whether srcva is not mapped in srcenvid's address space
+  	if((page = page_lookup(srcenv->env_pgdir, srcva, &te)) == NULL){
+		  return -E_INVAL;
+  	}
+  
+  	// if (perm & PTE_W), but srcva is read-only
+  	if((perm & PTE_W) && !(*te & PTE_W)){
+		  return -E_INVAL;
+		  }
+  
+  	// if  there is no memory to allocate any necessary page table 
+  	if((re = page_insert(dstenv->env_pgdir, page, dstva, perm))){
+		   return re;
+  	}
+  
+  	return 0;
 
 }
 
@@ -431,19 +427,27 @@ sys_ipc_try_send(envid_t envid, uint32_t value, void *srcva, unsigned perm)
             return -E_INVAL;
         }
 
-        if ((r = page_insert(e->env_pgdir, pp, e->env_ipc_dstva, perm)) != 0) {
-            return r;
-        }
+        // if ((r = page_insert(e->env_pgdir, pp, e->env_ipc_dstva, perm)) != 0) {
+        //     return r;
+        // }
 
-		e->env_ipc_perm = perm;
-	} else {
-		e->env_ipc_perm = 0;
+	// 	e->env_ipc_perm = perm;
+	// } else {
+	// 	e->env_ipc_perm = 0;
+	// }
+	    if(e->env_ipc_dstva){
+      if((r = page_insert(e->env_pgdir, pp, e->env_ipc_dstva, perm)) < 0){
+        return r;
+      }
+      e->env_ipc_perm = perm;
+    }
 	}
 
 	e->env_ipc_recving = 0;
     e->env_ipc_from = curenv->env_id;
     e->env_ipc_value = value;
     e->env_status = ENV_RUNNABLE;
+    e->env_tf.tf_regs.reg_eax = 0;
 
 	return 0;
 }
@@ -470,6 +474,8 @@ sys_ipc_recv(void *dstva)
 	curenv->env_ipc_recving = 1;
     curenv->env_ipc_dstva = dstva;
     curenv->env_status = ENV_NOT_RUNNABLE;
+    curenv->env_ipc_from = 0;
+    sys_yield();
 	return 0;
 }
 

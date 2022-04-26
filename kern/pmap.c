@@ -171,6 +171,7 @@ mem_init(void)
 	// Make 'envs' point to an array of size 'NENV' of 'struct Env'.
 	// LAB 3: Your code here.
 	envs = (struct Env*)boot_alloc(NENV * sizeof(struct Env));
+	memset(envs, 0, NENV*sizeof(struct Env));
 
 	//////////////////////////////////////////////////////////////////////
 	// Now that we've allocated the initial kernel data structures, we set
@@ -283,7 +284,7 @@ mem_init_mp(void)
 		uint32_t kstacktop_i = KSTACKTOP - i * (KSTKSIZE + KSTKGAP);
 		
 		boot_map_region(kern_pgdir, kstacktop_i - KSTKSIZE, 
-						KSTKSIZE, PADDR(percpu_kstacks[i]), PTE_W|PTE_P);
+						KSTKSIZE, PADDR(&percpu_kstacks[i]), PTE_W|PTE_P);
 	}
 
 }

@@ -32,22 +32,24 @@ sched_yield(void)
 	// LAB 4: Your code here.
 
 	idle = curenv;
+	int env_index;
 
-	int idle_envid = (idle == NULL) ? -1 : ENVX(idle -> env_id);
+	int idle_envid = idle? ENVX(idle->env_id) + 1 : 0;
 
 	// search envs after idle
-	for (int i=idle_envid + 1; i<NENV; i++) {
-		if (envs[i].env_status == ENV_RUNNABLE) {
-			env_run(&envs[i]);
+	for (int i=0; i<NENV; i++) {
+		env_index = (idle_envid + i) % NENV;
+		if (envs[env_index].env_status == ENV_RUNNABLE) {
+			env_run(&envs[env_index]);
 		}
 	}
 
 	// find from 1st env if not foud
-	for (int i = 0; i<idle_envid; i++) {
-		if (envs[i].env_status == ENV_RUNNABLE) {
-			env_run(&envs[i]);
-		}
-	}
+	// for (int i = 0; i<idle_envid; i++) {
+	// 	if (envs[i].env_status == ENV_RUNNABLE) {
+	// 		env_run(&envs[i]);
+	// 	}
+	// }
 
 	// if still not found, try idle
 	if (idle != NULL && idle->env_status == ENV_RUNNING) {
