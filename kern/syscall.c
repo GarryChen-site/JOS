@@ -497,6 +497,12 @@ sys_transmit_packet(char *data, int len)
 	return e1000_transmit_packet(data,len);
 }
 
+static int
+sys_receive_packet(char *data_store, int *len_store){
+	user_mem_assert(curenv, data_store, *len_store, 0);
+	return e1000_receive_packet(data_store, len_store);
+}
+
 // Dispatches to the correct kernel function, passing the arguments.
 int32_t
 syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, uint32_t a5)
@@ -543,6 +549,8 @@ syscall(uint32_t syscallno, uint32_t a1, uint32_t a2, uint32_t a3, uint32_t a4, 
 		return sys_time_msec();
 	case SYS_transmit_packet:
 		return (int32_t)sys_transmit_packet((char *)a1, a2);
+	case SYS_receive_packet:
+    		return (int32_t)sys_receive_packet((char *)a1, (int *)a2);
 	default:
 		return -E_INVAL;
 	}

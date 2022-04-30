@@ -61,6 +61,8 @@ int	sys_ipc_try_send(envid_t to_env, uint32_t value, void *pg, int perm);
 int	sys_ipc_recv(void *rcv_pg);
 unsigned int sys_time_msec(void);
 int 	sys_transmit_packet(char *data, int len);
+int 	sys_receive_packet(char *data_store, int *len_store);
+
 
 
 // This must be inlined.  Exercise for reader: why?
