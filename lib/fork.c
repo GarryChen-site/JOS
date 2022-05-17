@@ -52,9 +52,9 @@ pgfault(struct UTrapframe *utf)
 	addr = ROUNDDOWN(addr, PGSIZE); 
 	memcpy(PFTEMP, addr, PGSIZE);
 
-	if((r = sys_page_unmap(envid, addr)) < 0){
-    		panic("pgfault:sys_page_unmap: %e \n", r);
-	}
+	// if((r = sys_page_unmap(envid, addr)) < 0){
+    	// 	panic("pgfault:sys_page_unmap: %e \n", r);
+	// }
 
 	if ((r = sys_page_map(envid, PFTEMP, envid, addr, PTE_W | PTE_U | PTE_P)) != 0) {
         panic("pgfault: %e", r);
@@ -164,14 +164,14 @@ fork(void)
         panic("fork: %e", r);
     }
     
-    if((r = sys_page_map(envid, (void *)(UXSTACKTOP - PGSIZE), 0, UTEMP, PTE_P|PTE_U|PTE_W)) < 0){
-    	panic("sys_page_map: %e \n", r);
-    }
-    memmove(UTEMP, (void *)(UXSTACKTOP -PGSIZE), PGSIZE);
+//     if((r = sys_page_map(envid, (void *)(UXSTACKTOP - PGSIZE), 0, UTEMP, PTE_P|PTE_U|PTE_W)) < 0){
+//     	panic("sys_page_map: %e \n", r);
+//     }
+//     memmove(UTEMP, (void *)(UXSTACKTOP -PGSIZE), PGSIZE);
     
-    if((r = sys_page_unmap(0, UTEMP)) < 0){
-	    panic("sys_page_unmap: %e \n", r);
-    }
+//     if((r = sys_page_unmap(0, UTEMP)) < 0){
+// 	    panic("sys_page_unmap: %e \n", r);
+//     }
 	// The parent sets the user page fault entrypoint for the child to look like its own
 	if ((r = sys_env_set_pgfault_upcall(envid, _pgfault_upcall)) != 0) {
         panic("fork: %e", r);
