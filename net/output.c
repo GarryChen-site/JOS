@@ -18,14 +18,29 @@ output(envid_t ns_envid)
 	//	- send the packet to the device driver
 
 	while(1){
+		// read a packet from the network server
 		r = ipc_recv(&from_env, &nsipcbuf, &perm);
+
+		// ignore non-NSREQ_OUTPUT IPC requests
 		if(r != NSREQ_OUTPUT){
 			continue;
 		}
 
-		pkt = &(nsipcbuf.pkt);
-		while((sys_transmit_packet(pkt->jp_data, pkt->jp_len))<0){
-			sys_yield();
+		// send the packet to the device driver
+        	// if tx queue is full, simply wait
+		while ((r = sys_transmit_packet(nsipcbuf.pkt.jp_data, nsipcbuf.pkt.jp_len)) == -E_TX_FULL) {
+            		sys_yield();
+        	}
+		
+		if (r < 0) {
+            	// ignore oversized packets
+            		if (r == -E_PKT_TOO_LARGE) {
+                		cprintf("%s: packet too large (%d bytes), ingored\n", binaryname, nsipcbuf.pkt.jp_len);
+                		continue;
+            		} else {
+                		panic("%s: sys_transmit_packet(): unexpected return value %d", binaryname, r);
+            		}
 		}
+        
 	}
 }

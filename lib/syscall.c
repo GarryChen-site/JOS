@@ -124,12 +124,12 @@ sys_time_msec(void)
 }
 
 int
-sys_transmit_packet(char *data, int len)
+sys_transmit_packet(const void* buf, size_t size)
 {
-	return syscall(SYS_transmit_packet, 1, (uint32_t)data, len, 0, 0, 0);
+	return syscall(SYS_transmit_packet, 0, (uint32_t)buf, size, 0, 0, 0);
 }
 
-int sys_receive_packet(char *data_store, int *len_store){
-  	return syscall(SYS_receive_packet, 1, (uint32_t)data_store, (uint32_t)len_store, 0, 0, 0);
+int sys_receive_packet(const void* buf, size_t size){
+  	return syscall(SYS_receive_packet, 0, (uint32_t)buf, size, 0, 0, 0);
 }
 

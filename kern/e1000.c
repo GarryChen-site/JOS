@@ -1,31 +1,55 @@
 #include <kern/e1000.h>
 #include <kern/pmap.h>
 #include <inc/string.h>
+#include <inc/error.h>
 
 // LAB 6: Your driver code here
 
 volatile void *e1000_mmio;
-#define E1000REG(offset)  (void *)(e1000_mmio+offset)
+#define E1000REG(offset)  (*(volatile uint32_t *)(e1000_mmio+offset))
+
+
+// tx
+#define TX_BUF_SIZE 1536  // 16-byte aligned for performance
+#define NTXDESC     32
+
+static struct e1000_tx_desc e1000_tx_queue[NTXDESC] __attribute__((aligned(16)));
+static uint8_t e1000_tx_buf[NTXDESC][TX_BUF_SIZE];
+
+
+
+#define RX_BUF_SIZE 2048
+#define NRXDESC     128
+
+static struct e1000_rx_desc e1000_rx_queue[NRXDESC] __attribute__((aligned(16)));
+static uint8_t e1000_rx_buf[NRXDESC][RX_BUF_SIZE];
+
+
 
 // transmit descriptor queue
-struct e1000_tdesc e1000_tdesc_queue[E1000_MAXTXQUEUE];
+// struct e1000_tdesc e1000_tdesc_queue[E1000_MAXTXQUEUE];
 // transmit paackets buffer
-char e1000_tx_pkt_buffer[E1000_MAXTXQUEUE][E1000_TXPKTSIZE];
+// char e1000_tx_pkt_buffer[E1000_MAXTXQUEUE][E1000_TXPKTSIZE];
 
 // receive descriptor queue 
-struct e1000_rdesc e1000_rdesc_queue[E1000_MAXRXQUEUE];
+// struct e1000_rdesc e1000_rdesc_queue[E1000_MAXRXQUEUE];
 // receive packets buffer
-char e1000_rx_pkt_buffer[E1000_MAXRXQUEUE][E1000_RXPKTSIZE];
+// char e1000_rx_pkt_buffer[E1000_MAXRXQUEUE][E1000_RXPKTSIZE];
 
-struct e1000_tdh *tdh;
-struct e1000_tdt *tdt;
+// struct e1000_tdh *tdh;
+// struct e1000_tdt *tdt;
 
 // receive descriptor queue head & tail
-struct e1000_rdh *rdh;
-struct e1000_rdt *rdt;
+// struct e1000_rdh *rdh;
+// struct e1000_rdt *rdt;
 
 // default mac address 52:54:00:12:34:56
 #define MACADDR 0x563412005452
+
+#define JOS_DEFAULT_MAC_LOW     0x12005452
+#define JOS_DEFAULT_MAC_HIGH    0x00005634
+
+uint32_t E1000_MAC[6] = {0x52, 0x54, 0x00, 0x12, 0x34, 0x56};
 
 
 
@@ -33,150 +57,132 @@ int pci_e1000_attach(struct pci_func *pcif){
   // char *hello = "I'm here!";
   pci_func_enable(pcif);
 
-  e1000_mmio = (void *)mmio_map_region(pcif->reg_base[0], pcif->reg_size[0]);
-  cprintf("PCI E1000 status is 0x%x\n", *(uint32_t *)E1000REG(E1000_STATUS));
+  e1000_mmio = mmio_map_region(pcif->reg_base[0], pcif->reg_size[0]);
+  cprintf("PCI E1000 status is 0x%x\n", E1000REG(E1000_STATUS));
   e1000_transmit_init();
   e1000_receive_init();
   // e1000_transmit_packet(hello, 9);
-  return 1;
+  // return 1;
+  return 0;
 }   
 
 
-void e1000_transmit_init() {
+void 
+e1000_transmit_init() {
 
-  // init tx queue
-  int i;
+int i;
+memset(e1000_tx_queue, 0, sizeof(e1000_tx_queue));
+for (i = 0; i < NTXDESC; i++) {
+        e1000_tx_queue[i].addr = PADDR(e1000_tx_buf[i]);
+}
 
-  struct e1000_tdbal *tdbal;
-  struct e1000_tdbah *tdbah;
-  struct e1000_tdlen *tdlen;
-  struct e1000_tctl *tctl;
-  struct e1000_tipg *tipg;
+    // initialize transmit descriptor registers
+    E1000REG(E1000_TDBAL) = PADDR(e1000_tx_queue);
+    E1000REG(E1000_TDBAH) = 0;
 
-  for (i=0; i<E1000_MAXTXQUEUE; i++){
-    e1000_tdesc_queue[i].addr = PADDR(e1000_tx_pkt_buffer[i]);
-    // chap 3.3.3
-    e1000_tdesc_queue[i].cmd  |= E1000_TXD_CMD_RS;
-    e1000_tdesc_queue[i].status |= E1000_TXD_STAT_DD;
-  }
+    E1000REG(E1000_TDLEN) = sizeof(e1000_tx_queue);
 
-  tdbal = (struct e1000_tdbal *)E1000REG(E1000_TDBAL);
-  tdbal->tdbal = PADDR(e1000_tdesc_queue);
+    E1000REG(E1000_TDH) = 0;
+    E1000REG(E1000_TDT) = 0;
 
-  tdbah = (struct e1000_tdbah *)E1000REG(E1000_TDBAH);
-  tdbah->tdbah = 0;
+    // initialize transmit control registers
+    E1000REG(E1000_TCTL) &= ~(E1000_TCTL_CT | E1000_TCTL_COLD);
+    E1000REG(E1000_TCTL) |= E1000_TCTL_EN | E1000_TCTL_PSP |
+                            (E1000_COLLISION_THRESHOLD << E1000_CT_SHIFT) |
+                            (E1000_COLLISION_DISTANCE << E1000_COLD_SHIFT);
 
-  tdlen = (struct e1000_tdlen *)E1000REG(E1000_TDLEN);
-  tdlen->len = E1000_MAXTXQUEUE;
-
-  tdh = (struct e1000_tdh *)E1000REG(E1000_TDH);
-  tdh->tdh = 0;
-
-  tdt = (struct e1000_tdt *)E1000REG(E1000_TDT);
-  tdt->tdt = 0;
-
-  tctl = (struct e1000_tctl *)E1000REG(E1000_TCTL);
-  tctl->en = 1;
-  tctl->psp = 1;
-  tctl->ct = 0x10;
-  tctl->cold = 0x40;
-
-  tipg = (struct e1000_tipg *)E1000REG(E1000_TIPG);
-  tipg->ipgt = 10;
-  tipg->ipgr1 = 4;
-  tipg->ipgr2 = 6;
+    E1000REG(E1000_TIPG) &= ~(E1000_TIPG_IPGT_MASK | E1000_TIPG_IPGR1_MASK | E1000_TIPG_IPGR2_MASK);
+    E1000REG(E1000_TIPG) |= E1000_DEFAULT_TIPG_IPGT |
+                            (E1000_DEFAULT_TIPG_IPGR1 << E1000_TIPG_IPGR1_SHIFT) |
+                            (E1000_DEFAULT_TIPG_IPGR2 << E1000_TIPG_IPGR2_SHIFT);
 
 }
 
-int e1000_transmit_packet(char *data, int len){
+int e1000_transmit_packet(const void *buf, size_t size){
 
-  uint16_t tail = tdt->tdt;
+  int tail = E1000REG(E1000_TDT);
 
-  // the transmit queue is full
-  if(!(e1000_tdesc_queue[tail].status & E1000_TXD_STAT_DD)){
-    return -1;
+  if (size > E1000_RXPKTSIZE) {
+    return -E_PKT_TOO_LARGE;
   }
 
-  e1000_tdesc_queue[tail].length = len;
-  e1000_tdesc_queue[tail].status &= ~E1000_TXD_STAT_DD;
-  e1000_tdesc_queue[tail].cmd |= (E1000_TXD_CMD_EOP | E1000_TXD_CMD_RS);
-  memcpy(e1000_tx_pkt_buffer[tail], data, len);
-  tdt->tdt = (tail + 1) % E1000_MAXTXQUEUE;
+  if ((e1000_tx_queue[tail].cmd & E1000_TXD_CMD_RS) && !(e1000_tx_queue[tail].status & E1000_TXD_STAT_DD)) {
+        return -E_TX_FULL;
+  }
+
+  // clears the DD bit
+  e1000_tx_queue[tail].status &= ~E1000_TXD_STAT_DD;
+  memcpy(e1000_tx_buf[tail], buf, size);
+  e1000_tx_queue[tail].length = size;
+  // set RS, EOP command bit
+  e1000_tx_queue[tail].cmd |= E1000_TXD_CMD_RS | E1000_TXD_CMD_EOP;
+
+  E1000REG(E1000_TDT) = (tail + 1) % NTXDESC;
 
   return 0;
+
 }
 
+
 void e1000_receive_init() {
-  int i;
 
-  uint64_t *ra;
-  uint64_t *mta;
-  struct e1000_ims *ims;
-  struct e1000_rdtr *rdtr;
-  struct e1000_rdbal *rdbal;
-  struct e1000_rdbah *rdbah;
-  struct e1000_rdlen *rdlen;
-  struct e1000_rctl *rctl;
+    // initialize rx queue
+    int i;
+    memset(e1000_rx_queue, 0, sizeof(e1000_rx_queue));
+    for (i = 0; i < NRXDESC; i++) {
+        e1000_rx_queue[i].addr = PADDR(e1000_rx_buf[i]);
+    }
 
-    // pointers to buffers should be stored in the receive descriptor 
-  for(i = 0; i < E1000_MAXRXQUEUE; i++){
-    e1000_rdesc_queue[i].addr = PADDR(e1000_rx_pkt_buffer[i]);
-  }
 
-  // set the mac address
-  ra = (uint64_t *)E1000REG(E1000_RA);
-  *ra = (uint64_t)MACADDR| ((uint64_t)E1000_RAH_AV << 32);
-
-  mta = (uint64_t *)E1000REG(E1000_MTA);
-  *mta =  0x0;
-
-  ims = (struct e1000_ims *)E1000REG(E1000_IMS);
-  ims->ims = 0x0;
-
-  // set receive descriptor base address low
-  rdbal = (struct e1000_rdbal *)E1000REG(E1000_RDBAL);
-  rdbal->rdbal = PADDR(e1000_rdesc_queue);
-  // set receive descriptor base address high
-  rdbah  = (struct e1000_rdbah *)E1000REG(E1000_RDBAH);
-  rdbah->rdbah = 0;
-
-  // set receive descriptor queue length
-  rdlen = (struct e1000_rdlen *)E1000REG(E1000_RDLEN);
-  rdlen->len = E1000_MAXRXQUEUE;
-
-  // set receive descriptor queue head
-  rdh = (struct e1000_rdh *)E1000REG(E1000_RDH);
-  rdh->rdh = 0;
+    // initialize receive address registers
+    E1000REG(E1000_RAL) = JOS_DEFAULT_MAC_LOW;
+    E1000REG(E1000_RAH) = JOS_DEFAULT_MAC_HIGH;
+    E1000REG(E1000_RAH) |= E1000_RAH_AV;
     
-  // set receive desciptor queue tail 
-  rdt = (struct e1000_rdt *)E1000REG(E1000_RDT);
-  rdt->rdt = E1000_MAXRXQUEUE - 1;
+    E1000REG(E1000_RDBAL) = PADDR(e1000_rx_queue);
+    E1000REG(E1000_RDBAH) = 0;
 
-  // set receiver control register
-  rctl = (struct e1000_rctl *)E1000REG(E1000_RCTL);
-  rctl->rcb |= E1000_RCTL_EN;
-  rctl->rcb &= ~E1000_RCTL_LPE;
-  rctl->rcb &= ~E1000_RCTL_LBM;
+    E1000REG(E1000_RDLEN) = sizeof(e1000_rx_queue);
 
-  rctl->rcb |=E1000_RCTL_BAM;
-  rctl->rcb |= E1000_RCTL_SECRC;
+    E1000REG(E1000_RDH) = 0;
+    E1000REG(E1000_RDT) = NRXDESC - 1;
+
+    E1000REG(E1000_RCTL) &= ~(E1000_RCTL_LBM | E1000_RCTL_RDMTS | E1000_RCTL_SZ | E1000_RCTL_BSEX);
+    E1000REG(E1000_RCTL) |= E1000_RCTL_EN | E1000_RCTL_SECRC;
+
 }
 
 // *len_store used to keep track
-int e1000_receive_packet(char *data_store, int *len_store){
+int e1000_receive_packet(void *buf, size_t size){
 
   // When the head pointer is equal to the tail pointer, the ring is empty. 
   // Hardware stops storing packets in system memory until software advances the tail pointer, making more receive buffers available.
-  uint16_t tail = (rdt->rdt + 1) % E1000_MAXRXQUEUE;
+  // uint16_t tail = (rdt->rdt + 1) % E1000_MAXRXQUEUE;
 
-  if(!(e1000_rdesc_queue[tail].status & E1000_RXD_STAT_DD)){
-    return -1;
-  }
+  // if(!(e1000_rx_queue[tail].status & E1000_RXD_STAT_DD)){
+  //   return -1;
+  // }
 
-  *len_store = e1000_rdesc_queue[tail].length;
-  e1000_rdesc_queue[tail].status &= ~E1000_RXD_STAT_DD;
-  memcpy(data_store, e1000_rx_pkt_buffer[tail], *len_store);
-  rdt -> rdt = (tail) % E1000_MAXRXQUEUE;
+  // *len_store = e1000_rx_queue[tail].length;
+  // e1000_rx_queue[tail].status &= ~E1000_RXD_STAT_DD;
+  // memcpy(data_store, e1000_rx_pkt_buffer[tail], *len_store);
+  // rdt -> rdt = (tail) % E1000_MAXRXQUEUE;
+    int tail = E1000REG(E1000_RDT);
+    int next = (tail + 1) % NRXDESC;
+    int length;
 
-  return 0;
+    if (!(e1000_rx_queue[next].status & E1000_RXD_STAT_DD)) {
+        return -E_RX_EMPTY;
+    }
+
+    if ((length = e1000_rx_queue[next].length) > size) {
+        return -E_PKT_TOO_LARGE;
+    }
+
+    memcpy(buf, e1000_rx_buf[next], length);
+    e1000_rx_queue[next].status &= ~E1000_RXD_STAT_DD;
+
+    E1000REG(E1000_RDT) = next;
+
+    return length;
 }
