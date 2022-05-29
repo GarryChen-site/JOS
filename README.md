@@ -2,6 +2,8 @@
 
 [地址](https://pdos.csail.mit.edu/6.828/2018/schedule.html)
 
+> 主要做了该页面的lab实验，后续补充其它
+
 [TOC]
 
 ## lab1: Booting a PC
